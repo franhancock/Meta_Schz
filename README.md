@@ -41,6 +41,14 @@ Phase_sync_metrics_reduced.s - compute Metastability and VAR
 
 04_COBRE_HCPEP_CONSCHZ_VAR_cat.Rmd - naive Bayes classifier for Cobre, and out-of-sample validation in HCPEP
 
+## Data in COBRA_COMPLEXITY_PHASE_FD
+
+Regtable_RAW.csv - derived data for analysis and figures for global measures
+
+RUN1/Regtable_MODES_RAW.csv - derived data for analysis and figures for local measures for CON
+
+RUN2/Regtable_MODES_RAW.csv - derived data for analysis and figures for local measures for SCHZ
+
 ### SUPPLIED FILES
 
 Additional files that are needed for the figures
