@@ -1,0 +1,1332 @@
+---
+title: "Permutation testing for SC Contribution - HCPEP"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(cowplot)
+library(xlsx)
+library(GGally)
+library(knitr)
+library(EnvStats)
+library(rstatix)
+library(MKinfer)
+library(ARTool)
+library(lmerTest)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE')
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### Setup for SC Contribution over 4 runs for 3 conditions
+
+```{r,boxplots,echo=FALSE, message=FALSE}
+
+Regtb <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE/SC_coupling.csv',stringsAsFactors=TRUE)
+
+# define the mode colors 
+
+mode1_col<-"grey69"
+mode2_col<-"firebrick"
+mode3_col<-"violet"
+mode4_col<-"darkorange1"
+mode5_col<-"purple"
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### ANOVAS for Caudate_L
+
+```{r,caudate_l,echo=FALSE, message=FALSE}
+bg<-"Caudate_L" 
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Caudate_L)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Caudate_L~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Caudate_L)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Caudate_L~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Caudate_L~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Caudate_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  effsize<-Regtb %>%
+    wilcox_effsize(Caudate_L ~ COND)
+
+  print(pwc_cond)
+  print(effsize)
+    
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"effsize", append=TRUE)
+} else {
+ # Interaction so just run 1-way anova for each COND with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Caudate_L~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Caudate_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+      add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Caudate_L ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON effsize", append=TRUE)
+    print("Result of pwc for CON")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Caudate_L~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Caudate_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Caudate_L ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP effsize", append=TRUE)
+    print("Result of pwc for NAP")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(Caudate_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+     
+    effsize<-Regtmp %>%
+      wilcox_effsize(Caudate_L ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+    print(pwc_cond)
+    print(effsize)
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE)    
+  }
+  
+} 
+
+# Caudate R -------------------------------------------
+bg<-"Caudate_R"
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Caudate_R)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Caudate_R~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Caudate_R)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Caudate_R~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Caudate_R~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Caudate_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  
+  effsize<-Regtb %>%
+    wilcox_effsize(Caudate_R ~ COND)
+  
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"Effect Size", append=TRUE)
+  
+  print(pwc_cond)
+  print(effsize)
+  
+} else {
+ # Interaction so just run 1-way anova for CON with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Caudate_R~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Caudate_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+      
+     effsize<-RegtbTmp %>%
+    wilcox_effsize(Caudate_R ~ RUN)
+     
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON Effect Size", append=TRUE)
+    
+    print("Result of pwc for CON")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Caudate_R~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Caudate_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Caudate_R ~ RUN)
+      
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP Effect Size", append=TRUE)
+    print("Result of pwc for NAP")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(Caudate_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    
+    effsize<-Regtmp %>%
+      wilcox_effsize(Caudate_R ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE)   
+    
+    print(pwc_cond)
+    print(effsize)
+  }
+  
+} 
+
+
+
+# Putamen L -------------------------------------------
+bg<-"Putamen_L"
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Putamen_L)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Putamen_L~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Putamen_L)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Putamen_L~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Putamen_L~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Putamen_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  
+  effsize<-Regtb %>%
+    wilcox_effsize(Putamen_L ~ COND)
+  
+  print(pwc_cond)
+  print(effsize)
+  
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"Effect Size", append=TRUE)
+  
+} else {
+ # Interaction so just run 1-way anova for each COND with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Putamen_L~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Putamen_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-Regtb %>%
+      wilcox_effsize(Putamen_L ~ RUN)
+   
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON Effect Size", append=TRUE)   
+    
+    print("Result of pwc for CON")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Putamen_L~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Putamen_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Putamen_L ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP Effect Size", append=TRUE) 
+    
+    print("Result of pwc for NAP")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(Putamen_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    
+    effsize<-Regtmp %>%
+      wilcox_effsize(Putamen_L ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+  
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE)   
+    
+    print(pwc_cond)
+    print(effsize)
+  }
+  
+} 
+
+
+# Putamen R -------------------------------------------
+bg<-"Putamen_R"
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Putamen_R)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Putamen_R~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Putamen_R)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Putamen_R~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Putamen_R~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Putamen_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  
+  effsize<-Regtb %>%
+      wilcox_effsize(Putamen_R ~ COND)
+  
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"Effect Size", append=TRUE)  
+  
+  print(pwc_cond)
+  print(effsize)
+
+} else {
+ # Interaction so just run 1-way anova for each COND with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Putamen_R~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Putamen_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+      effsize<-RegtbTmp %>%
+        wilcox_effsize(Putamen_R ~ RUN)
+      
+      write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+      write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON Effect Size", append=TRUE)     
+      
+      print("Result of pwc for CON")
+      print(pwc_run)
+      print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Putamen_R~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Putamen_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+      effsize<-RegtbTmp %>%
+        wilcox_effsize(Putamen_R ~ RUN)
+      
+      write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+      write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP Effect Size", append=TRUE)  
+      
+      print("Result of pwc for NAP")
+      print(pwc_run)
+      print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+      wilcox_test(Putamen_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-Regtmp %>%
+        wilcox_effsize(Putamen_R ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+   
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE)   
+    
+     print(pwc_cond)
+     print(effsize)
+  }
+  
+} 
+
+
+
+# Pallidum L -------------------------------------------
+bg<-"Pallidum_L"
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Pallidum_L)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Pallidum_L~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Pallidum_L)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Pallidum_L~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Pallidum_L~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Pallidum_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  
+  effsize<-Regtb %>%
+      wilcox_effsize(Pallidum_L ~ COND)
+  
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"Effect Size", append=TRUE)  
+  
+  print(pwc_cond)
+  print(effsize)
+  
+  
+
+} else {
+ # Interaction so just run 1-way anova for each COND with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Pallidum_L~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Pallidum_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Pallidum_L ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON Effect Size", append=TRUE)  
+    
+    print("Result of pwc for CON")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Pallidum_L~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Pallidum_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Pallidum_L ~ RUN)
+    
+      write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+      write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP Effect Size", append=TRUE)  
+            print("Result of pwc for NAP")
+      print(pwc_run)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(Pallidum_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    
+    effsize<-Regtmp %>%
+      wilcox_effsize(Pallidum_L ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+    
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE) 
+    
+    print(pwc_cond)
+    print(effsize)
+  }
+  
+} 
+
+# Pallidum R -------------------------------------------
+bg<-"Pallidum_R"
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Pallidum_R)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Pallidum_R~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Pallidum_R)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Pallidum_R~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Pallidum_R~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Pallidum_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  
+  effsize<-Regtb %>%
+      wilcox_effsize(Pallidum_R ~ COND)
+  
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"Effect Size", append=TRUE)  
+  
+  print(pwc_cond)
+  print(effsize)
+  
+} else {
+ # Interaction so just run 1-way anova for each COND with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Pallidum_R~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Pallidum_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Pallidum_R ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON Effect Size", append=TRUE)  
+        
+    print("Result of pwc for CON")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Pallidum_R~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Pallidum_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Pallidum_R ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP Effect Size", append=TRUE) 
+    
+    print("Result of pwc for NAP")
+    print(pwc_run)
+    print(effSize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(Pallidum_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    
+    effsize<-Regtmp %>%
+      wilcox_effsize(Pallidum_R ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+    
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE) 
+    
+    print(pwc_cond)
+    print(effsize)
+  }
+  
+} 
+
+
+# Thalamus L -------------------------------------------
+bg<-"Thalamus_L"
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Thalamus_L)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Thalamus_L~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Thalamus_L)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Thalamus_L~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Thalamus_L~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Thalamus_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  
+  effsize<-Regtb %>%
+      wilcox_effsize(Thalamus_L ~ COND)
+  
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"Effect Size", append=TRUE)  
+  
+  print(pwc_cond)
+  print(effsize)
+
+
+} else {
+ # Interaction so just run 1-way anova for each COND with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Thalamus_L~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Thalamus_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Thalamus_L ~ RUN)
+   
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON Effect Size", append=TRUE) 
+    
+    print("Result of pwc for CON")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Thalamus_L~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Thalamus_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Thalamus_L ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP Effect Size", append=TRUE) 
+    print("Result of pwc for NAP")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(Thalamus_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    
+    effsize<-Regtmp %>%
+      wilcox_effsize(Thalamus_L ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+  
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE) 
+    print(pwc_cond)
+    print(effsize)
+  }
+  
+} 
+
+# Thalamus R -------------------------------------------
+bg<-"Thalamus_R"
+bg
+
+# Test assumprions for 2 sample t-test
+
+# these run over all variables
+outliers<-Regtb %>%
+  identify_outliers(Thalamus_R)
+# no extreme outliers
+
+
+effSize<-Regtb %>%
+  cohens_d(Thalamus_R~COND,var.equal=TRUE)
+
+normality<-Regtb %>%
+  shapiro_test(Thalamus_R)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(Thalamus_R~COND)
+
+assess<-paste("Results/04_BG_PermAss",bg, ".xlsx",sep="")
+write.xlsx(effSize,assess,"effect size", append=FALSE)
+write.xlsx(normality,assess,"normality", append=TRUE)
+write.xlsx(equil,assess,"equivalence", append=TRUE)
+
+
+# Run a 2x4 non-parametric ANOVA to see if there are main and interaction effects between COND and RUN
+
+res.art<-art(Thalamus_R~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+write.xlsx(res.aov,paste("Results/04_",bg,".xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(Thalamus_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  
+  effsize<-Regtb %>%
+      wilcox_effsize(Thalamus_R ~ COND)
+  
+  write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"Effect Size", append=TRUE)  
+  
+  print(pwc_cond)
+  print(effsize)
+
+
+} else {
+ # Interaction so just run 1-way anova for each COND with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,Thalamus_R~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Thalamus_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Thalamus_R ~ RUN)
+   
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"CON Effect Size", append=TRUE) 
+    
+    print("Result of pwc for CON")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,Thalamus_R~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/04_",bg,".xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(Thalamus_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+    
+    effsize<-RegtbTmp %>%
+      wilcox_effsize(Thalamus_R ~ RUN)
+    
+    write.xlsx(pwc_run,paste("Results/04_",bg,".xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),"NAP Effect Size", append=TRUE) 
+    print("Result of pwc for NAP")
+    print(pwc_run)
+    print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(Thalamus_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    
+    effsize<-Regtmp %>%
+      wilcox_effsize(Thalamus_R ~ COND)
+    
+    print(paste("Result for pwc for ", r))
+  
+    write.xlsx(pwc_cond,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/04_",bg,".xlsx",sep=""),paste(r,"_effsize"), append=TRUE) 
+    print(pwc_cond)
+    print(effsize)
+  }
+  
+} 
+
+
+# Hippocampus_L-------------------------------------------
+# b<-"Hippocampus_L"
+# b
+
+# effSize<-Regtb %>%
+#   cohens_d(Hippocampus_L~COND,var.equal=TRUE)
+# 
+# normality<-Regtb %>%
+#   shapiro_test(Hippocampus_L)
+# # p value > 0.5 for all modes so continue with 2 sample t-test
+# 
+# equil<-Regtb %>%
+#   levene_test(Hippocampus_L~COND)
+# 
+# assess<-paste("Results/04_BG_PermAss",b, ".xlsx")
+# write.xlsx(effSize,assess,"effect size", append=FALSE)
+# write.xlsx(normality,assess,"normality", append=TRUE)
+# write.xlsx(equil,assess,"equivalence", append=TRUE)
+# 
+# res.art<-art(Hippocampus_L~COND*RUN + (1|SUB), data=Regtb)
+# res.aov<-anova(res.art)
+# write.xlsx(res.aov,"Results/04_Hippocampus_L.xlsx","AOV")
+# res.aov[3,5]
+# 
+# if (res.aov[3,5] < 0.05){
+#   # there is an interaction
+#   pwc<-art.con(res.art, "COND:RUN", adjust="bonferroni") %>%
+#     summary() %>%
+#     mutate(sig. = symnum(p.value, corr=FALSE, na=FALSE,
+#                        cutpoints = c(0, .001, .01, .05, .10,1),
+#                        symbols=c("***","**","*",".", " ")))
+# 
+#   write.xlsx(pwc,"Results/04_Hippocampus_L.xlsx","PWC", append=TRUE)
+#   res.aov
+#   pwc
+# 
+# } else {
+#  # no interaction so just run anova on RUN with Friednman test because it is a repeated measure 
+#   res.fried<-friedman.test(data=Regtb,Hippocampus_L~RUN |SUB)
+#   res.fried
+#   write.xlsx(sapply(res.fried,unlist),"Results/04_Hippocampus_L.xlsx","FRIED", append=TRUE)
+#   res.fried$p.value
+#   
+#   if (res.fried$p.value < 0.05){
+#     pwc_run <- Regtb %>%
+#       wilcox_test(Hippocampus_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni")
+#       write.xlsx(pwc_run,"Results/04_Hippocampus_L.xlsx","PWC_RUN", append=TRUE)
+#       pwc_run
+#   }
+#   
+#   # no interaction so just run non-parametric pairwise t-tests as only 2 factors
+#   
+#   pwc_cond <- Regtb %>%
+#     wilcox_test(Hippocampus_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni")
+#   pwc_cond
+#   
+#   write.xlsx(pwc_cond,"Results/04_Hippocampus_L.xlsx","PWC_COND", append=TRUE)
+# } 
+# 
+# 
+# # Hippocampus_R-------------------------------------------
+# b<-"Hippocampus_R"
+# b
+# 
+# effSize<-Regtb %>%
+#   cohens_d(Hippocampus_R~COND,var.equal=TRUE)
+# 
+# normality<-Regtb %>%
+#   shapiro_test(Hippocampus_R)
+# # p value > 0.5 for all modes so continue with 2 sample t-test
+# 
+# equil<-Regtb %>%
+#   levene_test(Hippocampus_R~COND)
+# 
+# assess<-paste("Results/04_BG_PermAss",b, ".xlsx")
+# write.xlsx(effSize,assess,"effect size", append=FALSE)
+# write.xlsx(normality,assess,"normality", append=TRUE)
+# write.xlsx(equil,assess,"equivalence", append=TRUE)
+# 
+# res.art<-art(Hippocampus_R~COND*RUN + (1|SUB), data=Regtb)
+# res.aov<-anova(res.art)
+# write.xlsx(res.aov,"Results/04_Hippocampus_R.xlsx","AOV")
+# res.aov[3,5]
+# 
+# if (res.aov[3,5] < 0.05){
+#   # there is an interaction
+#   pwc<-art.con(res.art, "COND:RUN", adjust="bonferroni") %>%
+#     summary() %>%
+#     mutate(sig. = symnum(p.value, corr=FALSE, na=FALSE,
+#                        cutpoints = c(0, .001, .01, .05, .10,1),
+#                        symbols=c("***","**","*",".", " ")))
+# 
+#   write.xlsx(pwc,"Results/04_Hippocampus_R.xlsx","PWC", append=TRUE)
+#   res.aov
+#   pwc
+# 
+# } else {
+#  # no interaction so just run anova on RUN with Friednman test because it is a repeated measure 
+#   res.fried<-friedman.test(data=Regtb,Hippocampus_R~RUN |SUB)
+#   res.fried
+#   write.xlsx(sapply(res.fried,unlist),"Results/04_Hippocampus_R.xlsx","FRIED", append=TRUE)
+#   res.fried$p.value
+#   
+#   if (res.fried$p.value < 0.05){
+#     pwc_run <- Regtb %>%
+#       wilcox_test(Hippocampus_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni")
+#       write.xlsx(pwc_run,"Results/04_Hippocampus_R.xlsx","PWC_RUN", append=TRUE)
+#       pwc_run
+#   }
+#   
+#   # no interaction so just run non-parametric pairwise t-tests as only 2 factors
+#   
+#   pwc_cond <- Regtb %>%
+#     wilcox_test(Hippocampus_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni")
+#   pwc_cond
+#   
+#   write.xlsx(pwc_cond,"Results/04_Hippocampus_R.xlsx","PWC_COND", append=TRUE)
+# } 
+# 
+# 
+# 
+# # Amygdala_L-------------------------------------------
+# b<-"Amygdala_L"
+# b
+# 
+# effSize<-Regtb %>%
+#   cohens_d(Amygdala_L~COND,var.equal=TRUE)
+# 
+# normality<-Regtb %>%
+#   shapiro_test(Amygdala_L)
+# # p value > 0.5 for all modes so continue with 2 sample t-test
+# 
+# equil<-Regtb %>%
+#   levene_test(Amygdala_L~COND)
+# 
+# assess<-paste("Results/04_BG_PermAss",b, ".xlsx")
+# write.xlsx(effSize,assess,"effect size", append=FALSE)
+# write.xlsx(normality,assess,"normality", append=TRUE)
+# write.xlsx(equil,assess,"equivalence", append=TRUE)
+# 
+# res.art<-art(Amygdala_L~COND*RUN + (1|SUB), data=Regtb)
+# res.aov<-anova(res.art)
+# write.xlsx(res.aov,"Results/04_Amygdala_L.xlsx","AOV")
+# res.aov[3,5]
+# 
+# if (res.aov[3,5] < 0.05){
+#   # there is an interaction
+#   pwc<-art.con(res.art, "COND:RUN", adjust="bonferroni") %>%
+#     summary() %>%
+#     mutate(sig. = symnum(p.value, corr=FALSE, na=FALSE,
+#                        cutpoints = c(0, .001, .01, .05, .10,1),
+#                        symbols=c("***","**","*",".", " ")))
+# 
+#   write.xlsx(pwc,"Results/04_Amygdala_L.xlsx","PWC", append=TRUE)
+#   res.aov
+#   pwc
+# 
+# } else {
+#  # no interaction so just run anova on RUN with Friednman test because it is a repeated measure 
+#   res.fried<-friedman.test(data=Regtb,Amygdala_L~RUN |SUB)
+#   res.fried
+#   write.xlsx(sapply(res.fried,unlist),"Results/04_Amygdala_L.xlsx","FRIED", append=TRUE)
+#   res.fried$p.value
+#   
+#   if (res.fried$p.value < 0.05){
+#     pwc_run <- Regtb %>%
+#       wilcox_test(Amygdala_L ~ RUN, paired = TRUE, p.adjust.method = "bonferroni")
+#       write.xlsx(pwc_run,"Results/04_Amygdala_L.xlsx","PWC_RUN", append=TRUE)
+#       pwc_run
+#   }
+#   
+#   # no interaction so just run non-parametric pairwise t-tests as only 2 factors
+#   
+#   pwc_cond <- Regtb %>%
+#     wilcox_test(Amygdala_L ~ COND, paired=FALSE,p.adjust.method = "bonferroni")
+#   pwc_cond
+#   
+#   write.xlsx(pwc_cond,"Results/04_Amygdala_L.xlsx","PWC_COND", append=TRUE)
+# } 
+# 
+# 
+# # Amygdala_R-------------------------------------------
+# b<-"Amygdala_R"
+# b
+# 
+# effSize<-Regtb %>%
+#   cohens_d(Amygdala_R~COND,var.equal=TRUE)
+# 
+# normality<-Regtb %>%
+#   shapiro_test(Amygdala_R)
+# # p value > 0.5 for all modes so continue with 2 sample t-test
+# 
+# equil<-Regtb %>%
+#   levene_test(Amygdala_R~COND)
+# 
+# assess<-paste("Results/04_BG_PermAss",b, ".xlsx")
+# write.xlsx(effSize,assess,"effect size", append=FALSE)
+# write.xlsx(normality,assess,"normality", append=TRUE)
+# write.xlsx(equil,assess,"equivalence", append=TRUE)
+# 
+# res.art<-art(Amygdala_R~COND*RUN + (1|SUB), data=Regtb)
+# res.aov<-anova(res.art)
+# write.xlsx(res.aov,"Results/04_Amygdala_R.xlsx","AOV")
+# print("AOV result")
+# print(res.aov[3,5])
+# 
+# if (res.aov[3,5] < 0.05){
+#   # there is an interaction
+#   pwc<-art.con(res.art, "COND:RUN", adjust="bonferroni") %>%
+#     summary() %>%
+#     mutate(sig. = symnum(p.value, corr=FALSE, na=FALSE,
+#                        cutpoints = c(0, .001, .01, .05, .10,1),
+#                        symbols=c("***","**","*",".", " ")))
+# 
+#   write.xlsx(pwc,"Results/04_Amygdala_R.xlsx","PWC", append=TRUE)
+#   res.aov
+#   pwc
+# 
+# } else {
+#  # no interaction so just run anova on RUN with Friednman test because it is a repeated measure 
+#   res.fried<-friedman.test(data=Regtb,Amygdala_R~RUN |SUB)
+#   
+#   print("Results from Friedmann test for RUNs")
+#   print(res.fried)
+#   
+#   write.xlsx(sapply(res.fried,unlist),"Results/04_Amygdala_R.xlsx","FRIED", append=TRUE)
+#   
+#   print("P value for Friedmann test")
+#   print(res.fried$p.value)
+#   
+#   if (res.fried$p.value < 0.05){
+#     pwc_run <- Regtb %>%
+#       wilcox_test(Amygdala_R ~ RUN, paired = TRUE, p.adjust.method = "bonferroni")
+#       write.xlsx(pwc_run,"Results/04_Amygdala_R.xlsx","PWC_RUN", append=TRUE)
+#       print("PWC for RUNs")
+#       print(pwc_run)
+#   }
+#   
+#   # no interaction so just run non-parametric pairwise t-tests as only 2 factors
+#   
+#   pwc_cond <- Regtb %>%
+#     wilcox_test(Amygdala_R ~ COND, paired=FALSE,p.adjust.method = "bonferroni")
+#   print("PWC for COND")
+#   print(pwc_cond)
+#   
+#   write.xlsx(pwc_cond,"Results/04_Amygdala_R.xlsx","PWC_COND", append=TRUE)
+# } 
+
+```

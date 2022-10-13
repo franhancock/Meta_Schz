@@ -1,0 +1,293 @@
+---
+title: "Rainclouds for SC Contribution - HCPEP"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(cowplot)
+library(xlsx)
+library(GGally)
+library(knitr)
+library(EnvStats)
+library(rstatix)
+library(MKinfer)
+library(ARTool)
+library(lmerTest)
+library(PupillometryR)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE')
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### Setup for SC Contribution over 4 runs for 3 conditions
+
+```{r,boxplots,echo=FALSE, message=FALSE}
+
+Regtb <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE/SC_coupling.csv',stringsAsFactors=TRUE)
+
+# define the mode colors 
+
+mode1_col<-"grey69"
+mode2_col<-"firebrick"
+mode3_col<-"violet"
+mode4_col<-"darkorange1"
+mode5_col<-"purple"
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### Rainclouds for Caudate_L
+
+```{r,caudate_l,echo=FALSE, message=FALSE}
+
+bg<-"Caudate_L" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Caudate_L, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y = Caudate_L, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Caudate_L, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank()
+      ) +
+      annotate(geom="text", x="RUN1",y=0.15, label="*",color="blue",size=14)+
+      annotate(geom="text", x="RUN2",y=0.15, label="****",color="red",size=14)+
+      annotate(geom="text", x="RUN4",y=0.15, label="*",color="blue",size=14)
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```
+### Rainclouds for Caudate_R
+
+```{r,caudate_r,echo=FALSE, message=FALSE}
+
+bg<-"Caudate_R" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Caudate_R, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y = Caudate_R, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Caudate_R, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank()
+      ) +
+      annotate(geom="text", x="RUN1",y=0.15, label="****",color="red",size=14)+
+      annotate(geom="text", x="RUN2",y=0.15, label="****",color="red",size=14)+
+      annotate(geom="text", x="RUN3",y=0.15, label="*",color="blue",size=14)
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```
+### Rainclouds for Putamen_L
+
+```{r,putamen_l,echo=FALSE, message=FALSE}
+
+bg<-"Putamen_L" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Putamen_L, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y = Putamen_L, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Putamen_L, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+  
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank()
+      ) +
+      annotate(geom="text", x="RUN1",y=0.15, label="***",color="blue",size=14)+
+      annotate(geom="text", x="RUN2",y=0.15, label="****",color="red",size=14)
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```
+### Rainclouds for Putamen_R
+
+```{r,putamen_r,echo=FALSE, message=FALSE}
+
+bg<-"Putamen_R" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Putamen_R, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y = Putamen_R, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Putamen_R, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank(),
+      ) +
+      annotate(geom="text", x="RUN1",y=0.15, label="**",color="blue",size=14)+
+      annotate(geom="text", x="RUN2",y=0.15, label="****",color="red",size=14)
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```
+### Rainclouds for Pallidum_L
+
+```{r,pallidum_l,echo=FALSE, message=FALSE}
+
+bg<-"Pallidum_L" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Pallidum_L, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y = Pallidum_L, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Pallidum_L, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+  
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank()
+      ) +
+      annotate(geom="text", x="RUN1",y=0.15, label="**",color="blue",size=14)+
+      annotate(geom="text", x="RUN2",y=0.15, label="**",color="blue",size=14)
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```
+### Rainclouds for Pallidum_R
+
+```{r,pallidum_r,echo=FALSE, message=FALSE}
+
+bg<-"Pallidum_R" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Pallidum_R, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y = Pallidum_R, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Pallidum_R, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+  
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank()
+      )
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```
+### Rainclouds for Thalamus_L
+
+```{r,thalamus_l,echo=FALSE, message=FALSE}
+
+bg<-"Thalamus_L" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Thalamus_L, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y =Thalamus_L, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Thalamus_L, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+  
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank()
+      ) +
+      annotate(geom="text", x="RUN1",y=0.15, label="****",color="blue",size=14)+
+      annotate(geom="text", x="RUN2",y=0.15, label="****",color="red",size=14)+
+      annotate(geom="text", x="RUN4",y=0.15, label="****",color="blue",size=14)
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```
+### Rainclouds for Thalamus_R
+
+```{r,thalamus_r,echo=FALSE, message=FALSE}
+
+bg<-"Thalamus_R" 
+
+
+bp <- ggplot(Regtb, aes(x = RUN, y = Thalamus_R, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(RUN)-.25, y =Thalamus_R, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = Thalamus_R, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+  
+  labs(y=paste(bg, "\nmean iPL"))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank()
+      ) +
+      annotate(geom="text", x="RUN1",y=0.15, label="***",color="blue",size=14)+
+      annotate(geom="text", x="RUN2",y=0.15, label="****",color="blue",size=14)
+
+ggsave(paste("Figures/04_",bg,"_CONNAP_mode_raincloud.pdf"), width=40, height=20, units="cm")
+  
+```

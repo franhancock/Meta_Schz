@@ -1,0 +1,145 @@
+---
+title: "Categorization of COND based on  HCP EP  dynamic metrics"
+author: 
+- name: "Fran Hancock"
+  affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,get_libs,echo=FALSE,message=FALSE}
+# R code
+
+library(lmerTest)
+library(ggpubr)
+library(caret)
+library(effects)
+library(see)
+library(car)
+library(sjPlot)
+library(cowplot)
+library(lmPerm)
+library(knitr)
+library(e1071)
+library(xlsx)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE')
+
+meth<-"xval"
+#comp<-"CON PAP"
+comp<-"CON NAP"
+#comp<-"PAP NAP"
+run<-'RUN1'
+
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+sym<-c(16,16)
+trellis.par.set(superpose.symbol = list(col = colors))
+trellis.par.set(superpose.line = list(col = colors))
+trellis.par.set(superpose.symbol = list(pch = sym))
+```
+
+### Linear Mixed effects modelling
+Assess the dynamic mode metrics for classification
+
+Train and validate in one RUN, then test in another RUN
+
+```{r,lme_model_panns,echo=FALSE, message=FALSE}
+DYN_CON<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_CON/Regtable_RAW.csv')
+DYN_NAP<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_NAP/Regtable_RAW.csv')
+
+ADYN<-rbind(DYN_CON,DYN_NAP)
+
+##################
+```
+
+## Classification with naive Bayes
+
+```{r,bayes_class,echo=FALSE, message=FALSE}
+library(e1071)
+DYN<-ADYN
+
+RegtbTrain<-DYN[DYN$RUN %in% c(run),]
+
+set.seed(123)
+
+# just a test - 90% of the variance in VAR is explained by SYNC
+# lm<-lm(VAR~SYNC, data=RegtbTrain)
+
+train.control<-trainControl(method = "repeatedcv", 
+                              savePredictions = TRUE,
+                              summaryFunction = twoClassSummary, 
+                              classProbs = TRUE,sampling = "down")
+
+cv_fit<-train(COND~  VAR , data=RegtbTrain, method = "nb",trControl=train.control)
+cv_fit
+cfm<-confusionMatrix(cv_fit)
+
+TP<-cfm$table[1,1]
+TN<-cfm$table[2,2]
+FP<-cfm$table[1,2]
+FN<-cfm$table[2,1]
+
+# sanity check
+Sens<-TP/(TP+FN)
+N=TP+TN+FP+FN
+mAcc<-(TP+TN)/(TP+TN+FP+FN)
+
+mROC<-mean(cv_fit$resample$ROC)
+mSens<-mean(cv_fit$resample$Sens)
+mSpec<-mean(cv_fit$resample$Spec)
+mROC
+mSens
+mSpec
+
+# get the statistical significance of the accuracy using Binomial distribution
+
+
+Correct<-as.integer(mAcc*100)
+statsig<-dbinom(Correct,N,0.5)
+
+mROCtxt<-paste("AUC = ",signif(mROC,3))
+mSenstxt<-paste("Sens = ",signif(mSens,3))
+mSpectxt<-paste("Spec = ",signif(mSpec,3))
+
+MAcctxt<-paste("BA = ", signif(mAcc,3))
+statsigTxt<-paste( "( p =" , signif(statsig,3),")")
+
+result_txt<-paste(signif(mROC,3), "/", signif(mAcc,3), "/", signif(mSpec,3), "/", signif(mSens,3))
+result_txt
+
+# The next code is just ti get a ROC curve - the results are ignored
+
+library(ROCR)
+pred_prob<-predict(cv_fit$finalModel, RegtbTrain, type ="prob")
+pred<-ROCR::prediction(predictions=pred_prob$posterior[, 2], labels=RegtbTrain$COND)
+roc<-performance(pred, measure="tpr", x.measure="fpr")
+
+roc_auc<-performance(pred, measure="auc")
+auc_val<-as.numeric(roc_auc@y.values)
+auc_txt<-paste("AUC = ",signif(auc_val,3))
+auc_txt
+
+pdf(paste("Figures/06_", run, "GLOBAL_HCPEP_CON_NAP_VAR_AUC_PLOT.pdf"))
+par(cex.axis=1.5)
+plot(roc, main=" ROC curve X-VAL GLOBAL VAR NAP CON",
+     col="blue",
+     lwd=3,
+     cex.lab = 1.5,
+     cex.main = 1.5)
+text(0.7,0.2,mROCtxt,cex=2)
+text(0.7,0.1,result_txt, cex=1.5)
+text(0.7, 0.0, statsigTxt, cex=1)
+segments(0, 0, 1, 1, lty=2)
+
+dev.off()
+
+```

@@ -1,0 +1,293 @@
+---
+title:  "Non-parametric anova testing dFC Metrics -HCPEP CON PAP NAP - RAW"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+
+library(performance)
+library(tidyverse)
+library(ggpubr)
+library(coin)
+library(rstatix)
+library(cowplot)
+library(ggsci)
+library(EnvStats)
+library(xlsx)
+library(knitr)
+library(MKinfer)
+library(ARTool)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE')
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### 2 Way mixed ANOVA
+## META
+
+```{r,anova_META,echo=FALSE, message=FALSE}
+
+Regtb1<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_CON/Regtable_RAW.csv',stringsAsFactors=TRUE)
+Regtb2<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_NAP/Regtable_RAW.csv',stringsAsFactors=TRUE)
+RegtbAll=rbind(Regtb1,Regtb2)
+
+Regtb<-RegtbAll
+
+```
+
+### Permutation testing for META
+
+```{r,meta,echo=FALSE, message=FALSE}
+
+outliers<-Regtb %>%
+  identify_outliers("META")
+# no extreme outliers
+
+normality<-Regtb %>%
+  shapiro_test(META)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(META~COND)
+# no diff in variance - no problem t-test var.equal = TRUE
+
+effSize<-Regtb %>%
+  cohens_d(META~COND,var.equal=TRUE)
+# small to negligble effect size
+
+write.xlsx(normality,"Results/02_Global_META_PermAss.xlsx","normality")
+write.xlsx(equil,"Results/02_Global_META_PermAss.xlsx","equivalence", append=TRUE)
+write.xlsx(effSize,"Results/02_Global_META_PermAss.xlsx","effect size", append=TRUE)
+
+# First check if META differed across runs using a one-way repeated measures non-parametric Friedman Test
+
+
+res.art<-art(META~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+
+write.xlsx(res.aov,paste("Results/02_Global_META.xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(META ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  print(pwc_cond)
+  effsize<-Regtb %>%
+  wilcox_effsize(META ~ COND)
+  print(effsize)
+  
+  write.xlsx(pwc_cond,paste("Results/02_Global_META.xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/02_Global_META.xlsx",sep=""),"Effect Size", append=TRUE)
+  
+} else {
+ # Interaction so just run 1-way anova for CON with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,META~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/02_Global_META.xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(META ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+      add_significance()
+      effsize<-RegtbTmp %>%
+        wilcox_effsize(META ~ RUN)
+     
+      write.xlsx(pwc_run,paste("Results/02_Global_META.xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+      write.xlsx(effsize,paste("Results/02_Global_META.xlsx",sep=""),"CON Effect Size", append=TRUE)      
+      print("Result of pwc for CON")
+      print(pwc_run)
+      print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,META~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/02_Global_META.xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(META ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+      add_significance()
+      effsize<-RegtbTmp %>%
+        wilcox_effsize(META ~ RUN)
+      
+      write.xlsx(pwc_run,paste("Results/02_Global_META.xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+      write.xlsx(effsize,paste("Results/02_Global_META.xlsx",sep=""),"NAP Effect Size", append=TRUE)   
+      print("Result of pwc for NAP")
+      print(pwc_run)
+      print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(META~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    effsize<-Regtmp %>%
+        wilcox_effsize(META ~ COND)
+    print(paste("Result for pwc for ", r))
+    
+   
+    write.xlsx(pwc_cond,paste("Results/02_Global_META.xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/02_Global_META.xlsx",sep=""),paste(r,"_Effect Size"), append=TRUE) 
+    
+    print(pwc_cond)
+    print(effsize)
+  }
+  
+} 
+
+```
+
+### Permutation testing for VAR
+
+```{r,var,echo=FALSE, message=FALSE}
+
+outliers<-Regtb %>%
+  identify_outliers("VAR")
+# no extreme outliers
+
+normality<-Regtb %>%
+  shapiro_test(VAR)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(VAR~COND)
+# no diff in variance - no problem t-test var.equal = TRUE
+
+effSize<-Regtb %>%
+  cohens_d(VAR~COND,var.equal=TRUE)
+# small to negligble effect size
+
+write.xlsx(normality,"Results/02_Global_VAR_PermAss.xlsx","normality")
+write.xlsx(equil,"Results/02_Global_VAR_PermAss.xlsx","equivalence", append=TRUE)
+write.xlsx(effSize,"Results/02_Global_VAR_PermAss.xlsx","effect size", append=TRUE)
+
+# First check if VAR differed across runs using a one-way repeated measures non-parametric Friedman Test
+
+
+res.art<-art(VAR~COND*RUN + (1|SUB), data=Regtb)
+res.aov<-anova(res.art)
+
+write.xlsx(res.aov,paste("Results/02_Global_VAR.xlsx",sep=""),"AOV")
+print("Results of 2x4 ANOVA")
+print(res.aov[3,5])
+
+if (res.aov[3,5] > 0.05){
+  # there is no interaction so just run non-parametric 2-sample 
+  print("No interaction - now just 2-sample test")
+  
+  pwc_cond <- Regtb %>%
+  wilcox_test(VAR ~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+    add_significance()
+  effsize<-Regtb %>%
+      wilcox_effsize(VAR ~ COND) 
+  print(pwc_cond)
+  print(effsize)
+  
+  write.xlsx(pwc_cond,paste("Results/02_Global_VAR.xlsx",sep=""),"PWC_COND", append=TRUE)
+  write.xlsx(effsize,paste("Results/02_Global_VAR.xlsx",sep=""),"Effect Size", append=TRUE)
+  
+} else {
+ # Interaction so just run 1-way anova for CON with Friednman test because it is a repeated measure 
+  
+  print("There was an interaction so run 1-sample for CON repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("CON"),]
+  res.fried<-friedman.test(data=RegtbTmp,VAR~RUN |SUB)
+  print("Result of 1-way ANOVA for CON")
+  print(res.fried)
+  
+  write.xlsx(sapply(res.fried,unlist),paste("Results/02_Global_VAR.xlsx",sep=""),"CON_FRIED", append=TRUE)
+  print(res.fried$p.value)
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(VAR ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+      effsize<-RegtbTmp %>%
+        wilcox_effsize(VAR ~ RUN) 
+      
+      write.xlsx(pwc_run,paste("Results/02_Global_VAR.xlsx",sep=""),"CON_PWC_RUN", append=TRUE)
+      write.xlsx(effsize,paste("Results/02_Global_VAR.xlsx",sep=""),"CON Effect Size", append=TRUE)
+      
+      print("Result of pwc for CON")
+      print(pwc_run)
+      print(effsize)
+  }
+  
+  print("There was an interaction so run 1-sample for NAP repeated measures - Friedmann")
+  RegtbTmp<-Regtb[Regtb$COND %in% c("NAP"),]
+  res.fried<-friedman.test(data=RegtbTmp,VAR~RUN |SUB)
+  print("Result of 1-way ANOVA for NAP")
+  print(res.fried)
+  write.xlsx(sapply(res.fried,unlist),paste("Results/02_Global_VAR.xlsx",sep=""),"NAP_FRIED", append=TRUE)
+  res.fried$p.value
+  
+  if (res.fried$p.value < 0.05){
+    pwc_run <- RegtbTmp %>%
+      wilcox_test(VAR ~ RUN, paired = TRUE, p.adjust.method = "bonferroni") %>%
+        add_significance()
+      effsize<-RegtbTmp %>%
+        wilcox_effsize(VAR ~ RUN) 
+      write.xlsx(pwc_run,paste("Results/02_Global_VAR.xlsx",sep=""),"NAP_PWC_RUN", append=TRUE)
+      write.xlsx(effsize,paste("Results/02_Global_VAR.xlsx",sep=""),"NAP Effect Size", append=TRUE)
+      print("Result of pwc for NAP")
+      print(pwc_run)
+      print(effsize)
+  }
+  
+  # run parametric 2-way for each RUN
+ 
+  runs<-c('RUN1','RUN2','RUN3','RUN4')
+  for(r in runs){
+    Regtmp<-Regtb[Regtb$RUN %in% c(r),]
+    pwc_cond <- Regtmp %>%
+    wilcox_test(VAR~ COND, paired=FALSE,p.adjust.method = "bonferroni") %>%
+      add_significance()
+    effsize<-Regtmp %>%
+        wilcox_effsize(VAR ~ COND)
+    print(paste("Result for pwc for ", r))
+    print(pwc_cond)
+    print(effsize)
+    write.xlsx(pwc_cond,paste("Results/02_Global_VAR.xlsx",sep=""),paste(r,"_PWC_COND"), append=TRUE)
+    write.xlsx(effsize,paste("Results/02_Global_VAR.xlsx",sep=""),paste(r,"_Effect Size"), append=TRUE)
+  
+  }
+  
+} 
+
+```
+
