@@ -1,0 +1,107 @@
+---
+title: "Permutation testing for META for dFC Metrics - COBRE RAW"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+
+
+library(lmerTest)
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(cowplot)
+library(xlsx)
+library(GGally)
+library(knitr)
+library(rstatix)
+library(EnvStats)
+library(MKinfer)
+library(PupillometryR)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD')
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### Test assumptions for t-test and then run permutation t-tests
+
+```{r,boxplots,echo=FALSE, message=FALSE}
+
+Regtb <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD/Regtable_RAW.csv',stringsAsFactors=TRUE)
+
+#Add dummy run for the raincloud
+
+Regtb$RUN<-"RUN1"
+
+# define the mode colors 
+
+mode1_col<-"grey69"
+mode2_col<-"firebrick"
+mode3_col<-"violet"
+mode4_col<-"darkorange1"
+mode5_col<-"purple"
+```
+
+### Rainclouds for META
+
+```{r,meta,echo=FALSE, message=FALSE}
+bp <- ggplot(Regtb, aes(x = RUN, y = META, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = 1-.25, y = META, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = META, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt)
+      ) +
+  annotate(geom="text", x="RUN1",y=0.3, label="**",color="red",size=14) 
+
+ggsave('Figures/03_Global_META_CONNAP_mode_raincloud.pdf', width=16, height=16, units="cm")
+
+```
+
+### Rainclouds for VAR
+
+```{r,var,echo=FALSE, message=FALSE}
+bp <- ggplot(Regtb, aes(x = RUN, y = VAR, fill = COND)) +
+  geom_flat_violin(aes(fill = COND),position = position_nudge(x = .2, y = 0), adjust = 1, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = 1-.25, y = VAR, colour = COND),position = position_jitter(width = .05), size = 1, shape = 20)+
+  geom_boxplot(aes(x = RUN, y = VAR, fill = COND),outlier.shape = NA, alpha = .5, width = .25, colour = "black")+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt)
+      ) +
+  annotate(geom="text", x="RUN1",y=0.0085, label="***",color="red",size=14) 
+  
+
+ggsave('Figures/03_Global_VAR_CONNAP_mode_raincloud.pdf', width=16, height=16, units="cm")
+
+```

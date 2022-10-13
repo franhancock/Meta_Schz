@@ -1,0 +1,205 @@
+---
+title: "Permutation testing for VAR in modes COBRE RAW"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+
+
+library(lmerTest)
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(cowplot)
+library(xlsx)
+library(GGally)
+library(knitr)
+library(rstatix)
+library(EnvStats)
+library(MKinfer)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD')
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### Test assumptions for t-test and then run permutation t-tests
+
+```{r,boxplots,echo=FALSE, message=FALSE}
+
+Regtb1 <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD/RUN1/Regtable_MODES_RAW.csv',stringsAsFactors=TRUE)
+Regtb2 <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD/RUN2/Regtable_MODES_RAW.csv',stringsAsFactors=TRUE)
+
+# change NAP to SCHZ for figures
+Regtb2$COND<-'SCHZ'
+
+Regtb=rbind(Regtb1,Regtb2)
+
+# define the mode colors 
+
+mode1_col<-"grey69"
+mode2_col<-"firebrick"
+mode3_col<-"violet"
+mode4_col<-"darkorange1"
+mode5_col<-"purple"
+```
+
+### Permutation tests for VAR
+
+```{r,anovas,echo=FALSE, message=FALSE}
+
+# Test assumprions for 2 sample t-test
+
+
+outliers<-Regtb %>%
+  group_by(MODE) %>%
+  identify_outliers("VAR")
+# no extreme outliers
+
+normality<-Regtb %>%
+  group_by(MODE) %>%
+  shapiro_test(VAR)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  group_by(MODE) %>%
+  levene_test(VAR~COND)
+# no diff in VARiance - no problem t-test VAR.equal = TRUE
+
+effSize<-Regtb %>%
+  group_by(MODE) %>% 
+  cohens_d(VAR~COND,var.equal=TRUE)
+# small to negligble effect size
+
+# save the assumption information
+
+write.xlsx(normality,"Results/03_Mode_VAR_PermAss.xlsx","normality")
+write.xlsx(equil,"Results/03_Mode_VAR_PermAss.xlsx","equivalence", append=TRUE)
+write.xlsx(effSize,"Results/03_Mode_VAR_PermAss.xlsx","effect size", append=TRUE)
+
+# SO CANNOT USE t-test - need to use permutation
+
+x<-Regtb[Regtb$COND %in% c("CON"),]
+y<-Regtb[Regtb$COND %in% c("SCHZ"),]
+
+mode<-c("MODE1","MODE2","MODE3","MODE4","MODE5")
+mm<-1
+
+# Correct here for multiple comparisons
+cutpoints<-c(0, 0.0001/5, 0.001/5, 0.01/5, 0.05/5,  1)
+  symbols<-c("****", "***", "**", "*",  "ns")
+  
+for( m in mode) {
+  
+  xx<-x[x$MODE %in% c(m),]
+  yy<-y[y$MODE %in% c(m),]
+  
+  stat.test_list<-perm.t.test(xx$VAR,yy$VAR, paired=FALSE) 
+  
+  # extract the results from the perm htest object
+  
+  s_df<-stat.test_list$parameter
+  s_test<-stat.test_list$statistic
+  s_perm_p<-stat.test_list$perm.p.value
+  s_upci<-stat.test_list$perm.conf.int[[1]]
+  s_loci<-stat.test_list$perm.conf.int[[2]]
+  s_mean_con<-stat.test_list$estimate[[1]]
+  s_mean_nap<-stat.test_list$estimate[[2]]
+  
+  # code adapted from add_significance 
+  cutpoints<-c(0, 0.0001, 0.001, 0.01, 0.05,  1)
+  symbols<-c("****", "***", "**", "*",  "ns")
+  p.signif <- s_perm_p %>%
+      stats::symnum(cutpoints = cutpoints, symbols = symbols, na = "") %>%
+      as.character()
+  
+  # store them in a dataframe for the figures
+  stat.test<-data.frame(s_df,s_test, s_perm_p, s_upci,s_loci, s_mean_con, s_mean_nap,p.signif)
+  # add group1 and group2
+  stat.test["group1"]<-"CON"
+  stat.test["group2"]<-"SCHZ"
+  #
+  
+  htest<-paste("StatTest",m)
+  if(mm==1){
+     write.xlsx(as_tibble(stat.test),"Results/03_Mode_VAR_perm_results.xlsx",htest)
+  } else {
+    write.xlsx(as_tibble(stat.test),"Results/03_Mode_VAR_perm_results.xlsx",htest, append=TRUE)
+  }
+  
+  Regtb_tmp<-Regtb[Regtb$MODE %in% c(m),]
+  
+  VAR_means<-Regtb_tmp %>%
+    group_by(COND) %>%
+    summarise(mean_VAR=mean(VAR),
+              sd_VAR=sd(VAR)
+           )
+  VAR_means
+  
+  VAR_se<-Regtb_tmp %>%
+    group_by(COND) %>%
+    summarise(mean_VAR=mean(VAR),
+              sd_VAR=sd(VAR),
+              N_N=n(),
+              se=sd_VAR/sqrt(N_N),
+              ul=mean_VAR+se,
+              ll=mean_VAR-se
+            )
+  VAR_se
+  desc<-paste("Descp",m)
+  if(mm==1){
+     write.xlsx(as_tibble(VAR_se),"Results/03_Mode_VAR_descriptive_stats.xlsx",desc)
+  } else {
+    write.xlsx(as_tibble(VAR_se),"Results/03_Mode_VAR_descriptive_stats.xlsx",desc, append=TRUE)
+  }
+  
+  bp<-VAR_se %>% 
+    ggplot(aes(COND,mean_VAR)) +
+    geom_col(aes(fill=COND)) +
+    geom_errorbar(aes(ymin= ll,ymax=ul))+
+    scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND))) +
+    xlab(" ") +
+    ylab("VAR")+
+    ggtitle(m)+
+    theme(plot.title = element_text(size=etxt, hjust = 0.5),
+      axis.text = element_text(size = axtxt),
+      axis.title.x = element_text(size=tittxt),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=stittxt),
+      plot.caption = element_text(size=stittxt),
+      legend.position = "none") +
+      scale_x_discrete(labels=c("CON" = "C","SCHZ" = "S"))
+    
+  barplt<-bp +stat_pvalue_manual(
+    stat.test, y.position = c(0.006), label = "p.signif", tip.length = 0,hide.ns=FALSE,size=8, color="red")
+  switch(mm,
+         bp1<-barplt,
+         bp2<-barplt,
+         bp3<-barplt,
+         bp4<-barplt,
+         bp5<-barplt
+         )
+  mm<-mm+1
+}
+
+ga<-plot_grid(bp1,bp2,bp3,bp4,bp5, nrow=1,ncol=5 )
+ggsave('Figures/03_perm_VAR_CONNAP_mode_bar.pdf', width=60, height=20, units="cm")
+
+  
+```

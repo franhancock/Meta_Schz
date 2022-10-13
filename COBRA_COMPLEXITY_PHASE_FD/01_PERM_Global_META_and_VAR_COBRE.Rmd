@@ -1,0 +1,248 @@
+---
+title:  "Permutation testing  for dFC Metrics -without subjects with high FD COBRE"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+library(lmerTest)
+library(easystats)
+library(performance)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(cowplot)
+library(ggsci)
+library(EnvStats)
+library(boot)
+library(xlsx)
+library(knitr)
+library(MKinfer)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD/')
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### 2 Way mixed ANOVA
+## META
+
+```{r,perm_META,echo=FALSE, message=FALSE}
+
+Regtb <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD/Regtable_RAW.csv',stringsAsFactors=TRUE)
+
+```
+
+### ANOVAS for META
+
+```{r,anovas,echo=FALSE, message=FALSE}
+
+outliers<-Regtb %>%
+  identify_outliers("META")
+# no extreme outliers
+
+normality<-Regtb %>%
+  shapiro_test(META)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(META~COND)
+# no diff in variance - no problem t-test var.equal = TRUE
+
+effSize<-Regtb %>%
+  cohens_d(META~COND,var.equal=TRUE)
+# small to negligble effect size
+
+write.xlsx(normality,"Results/01_Global_META_PermAss.xlsx","normality")
+write.xlsx(equil,"Results/01_Global_META_PermAss.xlsx","equivalence", append=TRUE)
+write.xlsx(effSize,"Results/01_Global_META_PermAss.xlsx","effect size", append=TRUE)
+
+# do meta and var sequentially
+x<-Regtb[Regtb$COND %in% c("CONT"),]
+y<-Regtb[Regtb$COND %in% c("SCHZ"),]
+
+stat.test_list<-perm.t.test(x$META,y$META, paired=FALSE) 
+
+# extract the results from the perm htest object
+
+s_df<-stat.test_list$parameter
+s_test<-stat.test_list$statistic
+s_perm_p<-stat.test_list$perm.p.value
+s_upci<-stat.test_list$perm.conf.int[[1]]
+s_loci<-stat.test_list$perm.conf.int[[2]]
+s_mean_con<-stat.test_list$estimate[[1]]
+s_mean_nap<-stat.test_list$estimate[[2]]
+
+# code adapted from add_significance 
+cutpoints<-c(0, 0.0001, 0.001, 0.01, 0.05,  1)
+symbols<-c("****", "***", "**", "*",  "ns")
+p.signif <- s_perm_p %>%
+    stats::symnum(cutpoints = cutpoints, symbols = symbols, na = "") %>%
+    as.character()
+
+# store them in a dataframe for the figures
+stat.test<-data.frame(s_df,s_test, s_perm_p, s_upci,s_loci, s_mean_con, s_mean_nap,p.signif)
+# add group1 and group2
+stat.test["group1"]<-"CONT"
+stat.test["group2"]<-"SCHZ"
+#
+
+write.xlsx(stat.test,"Results/01_Global_META_perm_results.xlsx")
+
+META_means<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_META=mean(META),
+            sd_META=sd(META)
+         )
+META_means
+
+META_se<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_META=mean(META),
+            sd_META=sd(META),
+            N_N=n(),
+            se=sd_META/sqrt(N_N),
+            ul=mean_META+se,
+            ll=mean_META-se
+          )
+META_se
+
+write.xlsx(as_tibble(META_se),"Results/01_Global_META_descriptive_stats.xlsx",desc)
+
+
+bp<-META_se %>% 
+  ggplot(aes(COND,mean_META)) +
+  geom_col(aes(fill=COND)) +
+  geom_errorbar(aes(ymin= ll,ymax=ul))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND))) +
+  xlab(" ") +
+  ylab("META")+
+  theme(plot.title = element_text(size=etxt),
+    axis.text = element_text(size = axtxt),
+    axis.title.x = element_text(size=tittxt),
+    axis.title.y = element_text(size=tittxt),
+    plot.subtitle = element_text(size=stittxt),
+    plot.caption = element_text(size=stittxt),
+    legend.position = "none") +
+    scale_x_discrete(labels=c("CONT" = "C","SCHZ" = "S"))
+
+barplt<-bp +stat_pvalue_manual(
+  stat.test, y.position = c(0.25), label = "p.signif", tip.length = 0,hide.ns=FALSE,size=8, color="red",vjust=0.5)
+pdf("Figures/01_Global_perm_META.pdf",6,4)
+barplt
+dev.off()
+
+
+# Now do VAR
+
+# Test assumptions for t-tetstand run permutation t-tests if not valid
+outliers<-Regtb %>%
+  identify_outliers("VAR")
+# no extreme outliers
+
+normality<-Regtb %>%
+  shapiro_test(VAR)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(VAR~COND)
+# no diff in variance - no problem t-test var.equal = TRUE
+
+effSize<-Regtb %>%
+  cohens_d(VAR~COND,var.equal=TRUE)
+# small to negligble effect size
+
+write.xlsx(normality,"Results/01_Global_VAR_PermAss.xlsx","normality")
+write.xlsx(equil,"Results/01_Global_VAR_PermAss.xlsx","equivalence", append=TRUE)
+write.xlsx(effSize,"Results/01_Global_VAR_PermAss.xlsx","effect size", append=TRUE)
+
+x<-Regtb[Regtb$COND %in% c("CONT"),]
+y<-Regtb[Regtb$COND %in% c("SCHZ"),]
+
+stat.test_list<-perm.t.test(x$VAR,y$VAR, paired=FALSE) 
+
+# extract the results from the perm htest object
+
+s_df<-stat.test_list$parameter
+s_test<-stat.test_list$statistic
+s_perm_p<-stat.test_list$perm.p.value
+s_upci<-stat.test_list$perm.conf.int[[1]]
+s_loci<-stat.test_list$perm.conf.int[[2]]
+s_mean_con<-stat.test_list$estimate[[1]]
+s_mean_nap<-stat.test_list$estimate[[2]]
+
+# code adapted from add_significance 
+cutpoints<-c(0, 0.0001, 0.001, 0.01, 0.05,  1)
+symbols<-c("****", "***", "**", "*",  "ns")
+p.signif <- s_perm_p %>%
+    stats::symnum(cutpoints = cutpoints, symbols = symbols, na = "") %>%
+    as.character()
+
+# store them in a dataframe for the figures
+stat.test<-data.frame(s_df,s_test, s_perm_p, s_upci,s_loci, s_mean_con, s_mean_nap,p.signif)
+# add group1 and group2
+stat.test["group1"]<-"CONT"
+stat.test["group2"]<-"SCHZ"
+#
+
+write.xlsx(stat.test,"Results/01_Global_VAR_perm_results.xlsx")
+
+VAR_means<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_VAR=mean(VAR),
+            sd_VAR=sd(VAR)
+         )
+VAR_means
+
+VAR_se<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_VAR=mean(VAR),
+            sd_VAR=sd(VAR),
+            N_N=n(),
+            se=sd_VAR/sqrt(N_N),
+            ul=mean_VAR+se,
+            ll=mean_VAR-se
+          )
+VAR_se
+
+write.xlsx(as_tibble(VAR_se),"Results/01_Global_VAR_descriptive_stats.xlsx",desc)
+
+
+bp<-VAR_se %>% 
+  ggplot(aes(COND,mean_VAR)) +
+  geom_col(aes(fill=COND)) +
+  geom_errorbar(aes(ymin= ll,ymax=ul))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND))) +
+  xlab(" ") +
+  ylab("VAR")+
+  theme(plot.title = element_text(size=etxt),
+    axis.text = element_text(size = axtxt),
+    axis.title.x = element_text(size=tittxt),
+    axis.title.y = element_text(size=tittxt),
+    plot.subtitle = element_text(size=stittxt),
+    plot.caption = element_text(size=stittxt),
+    legend.position = "none") +
+    scale_x_discrete(labels=c("CONT" = "C","SCHZ" = "S"))
+
+
+barplt<-bp +stat_pvalue_manual(
+  stat.test, y.position = c(0.0065), label = "p.signif", tip.length = 0,hide.ns=FALSE,size=8, color="red")
+pdf("Figures/01_Global_perm_VAR.pdf",6,4)
+barplt
+dev.off()
+
+```
+
