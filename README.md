@@ -55,6 +55,10 @@ sc_stats_for_R.m - calculate contribution of basal ganglia regions
 
 04_Rainclouds_CONTRIBUTIONS_HCPEP_SC.Rmd - plot rainclouds for basal ganglia contributions
 
+## Data in HCPEP_COMPARE
+
+SC_coupling.csv - derived data for analysis and figures for basal ganglia contribution
+
 ## Data in HCPEP_CON and HCPEP_NAP
 
 Regtable_RAW.csv - derived data for analysis and figures for global measures
