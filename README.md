@@ -6,7 +6,12 @@ The folder structure here just reflects what the code expects.
 ### Data: 
 **Cobre** data is openly available from http://fcon_1000.projects.nitrc.org/indi/retro/cobre.html
 
-**Human Connectome Project - Early Psychosis** data is restricted  doi:10.15154/1524263 https://nda.nih.gov/edit_collection.html?id=2914).  A Data Use Certification (DUC) is required to access the HCPEP on the NIMH Data Archive (NDA).
+**Human Connectome Project - Early Psychosis** data is restricted: NIMH Data Archive Digital Object Identifier (DOI) 10.15154/1528359. This manuscript reflects the views of the authors and may not reflect the opinions or views of the NIH or of the Submitters submitting original data to NDA.
+A Data Use Certification (DUC) is required to access the HCPEP on the NIMH Data Archive (NDA).
+
+**Human Connectome Project - Early Psychosis** - Derived Data for complete analysis
+
+MATLAB files for parcellated data for all subjects in both datasets is available at 10.5281/zenodo.7464484.
 
 ### Code
 Complete code is provided to run the analysis in the Cobre dataset
@@ -63,6 +68,31 @@ sc_stats_for_R.m - calculate contribution of basal ganglia regions
 
 04_Rainclouds_CONTRIBUTIONS_HCPEP_SC.Rmd - plot rainclouds for basal ganglia contributions
 
+02_ART_HCPEP_Global_META_and_VAR.Rmd - Statistics for global META and VAR
+
+03_META_ART_CON_NAP_HCPEP_MODES.Rmd - Statistics for mode META
+
+05_VAR_ART_CON_NAP_HCPEP_MODES.Rmd - Statistics for mode VAR
+
+03_Rain_clouds_Modes_META_VAR_DIST_CON_NAP_HCPEP.Rmd - plot rainclouds for statistics
+
+### Classifiers
+
+07_HCPEP_CON_NAP_VAR_cat.Rmd
+
+08_HCPEP_CON_NAP_META_cat.Rmd
+
+07_HCPEP_CON_NAP_VAR_cat_UP.Rmd - upsampled
+
+07_HCPEP_CON_NAP_VAR_SVM_cat.Rmd - SVM
+
+07_HCPEP_CON_NAP_VAR_LR_cat.Rmd - Logistic regression
+
+07_HCPEP_CON_NAP_VAR_cat_NM.Rmd - NeuroMark template
+
+07_HCPEP_CON_NAP_VAR_cat_IV.Rmd - Internal validation
+
+
 ## Data in HCPEP_COMPARE
 
 SC_coupling.csv - derived data for analysis and figures for basal ganglia contribution
@@ -73,5 +103,34 @@ Regtable_RAW.csv - derived data for analysis and figures for global measures
 
 Regtable_MODES_RAW.csv - derived data for analysis and figures for local measures
 
+## Data and code functionality in IGNIT_HCPEP / IGNIT_COBRE for measures of Integration, Segmentation, and Metastability Index
+
+PL_ignition_metrics.m
+
+PL_IGNIT_GLOBAL2R.m
+
+IGNIT_Regtable_RAW.csv
+
+01_PERM_Global_IGNIT_HCPEP.rmd
+
+01_PERM_Global_IGNIT_HCPEP_META.rmd
+
+## Data and code functionality in HCPEP_CON_NM /HCPEP_NAP_NM /COBRE_NM for NeuroMark template
+
+NM_ICN.mat - Brain regions assignment to NM 
+
+Phase_sync_metrics.m - calcaule META and VAR
+
+LMER_MODES2R.Rmd - export for r
+
+### Derived data to run the classifiers in HCPEP_COMPARE
+
+#### For HCPEP
+Regtable_MODES_RAW.csv
+
+#### For Cobre
+RUN1/Regtable_MODES_RAW.csv  
+
+RUN2/Regtable_MODES_RAW.csv
 
 
