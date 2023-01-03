@@ -76,6 +76,8 @@ sc_stats_for_R.m - calculate contribution of basal ganglia regions
 
 03_Rain_clouds_Modes_META_VAR_DIST_CON_NAP_HCPEP.Rmd - plot rainclouds for statistics
 
+08_Demographics_age_sex
+
 ### Classifiers
 
 07_HCPEP_CON_NAP_VAR_cat.Rmd
