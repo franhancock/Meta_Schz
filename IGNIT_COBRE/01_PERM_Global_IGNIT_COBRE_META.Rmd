@@ -1,0 +1,459 @@
+---
+title:  "Permutation testing  for dFC Metrics -META without subjects with high FD COBRE"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+library(lmerTest)
+library(easystats)
+library(performance)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(cowplot)
+library(ggsci)
+library(EnvStats)
+library(boot)
+library(xlsx)
+library(knitr)
+library(MKinfer)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/IGNIT_COBRE/')
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+etxt<-50
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### 2 Way mixed ANOVA
+## GINT
+
+```{r,perm_GINT,echo=FALSE, message=FALSE}
+
+Regtb <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/IGNIT_COBRE/IGNIT_Regtable_RAW.csv',stringsAsFactors=TRUE)
+
+```
+
+### ANOVAS for GINT
+
+```{r,anovas,echo=FALSE, message=FALSE}
+
+# Scott Kelso k number dwell time/escape time
+# An essay on understanding the mind (Kelso, 2008)
+# Use ratio of seg to integ
+
+RegtbCON<-Regtb[Regtb$COND %in% c("CONT"),]
+RegtbSCHZ<-Regtb[Regtb$COND %in% c("SCHZ"),]
+
+K<-Regtb$FSEG/Regtb$GINT
+
+Kcon<-RegtbCON$FSEG/RegtbCON$GINT
+
+lmCON<-lm(Kcon~META, data=RegtbCON)
+
+sumCON<-summary(lmCON)
+
+tidylm<-broom::glance(lmCON)
+write.xlsx(tidylm,"Results/01_Regression_META.xlsx","K_CON")
+
+
+R2<-format(signif(sumCON$r.squared,2),digits=2,nsmall=1)
+R2adj<-format(signif(sumCON$adj.r.squared,2), digits=2,nsmall=1)
+
+CONtxt<-paste("CON: R2=", R2, ", R2adj=", R2adj,sep="")
+
+Kschz<-RegtbSCHZ$FSEG/RegtbSCHZ$GINT
+
+lmSCHZ<-lm(Kschz~META, data=RegtbSCHZ)
+sumSCHZ<-summary(lmSCHZ)
+
+tidylm<-broom::glance(lmSCHZ)
+write.xlsx(tidylm,"Results/01_Regression_META.xlsx","K_SCHZ", append=TRUE)
+
+R2<-format(signif(sumSCHZ$r.squared,2),digits=2,nsmall=1)
+R2adj<-format(signif(sumSCHZ$adj.r.squared,2), digits=2,nsmall=1)
+
+SCHZtxt<-paste("SCHZ: R2=", R2, ", R2adj=", R2adj,sep="")
+
+pkelso<-ggplot(data=Regtb,aes(x=META,y=K,col=COND))+
+  geom_point(aes(color=COND))+
+  geom_smooth(method = "lm", se = FALSE)+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  theme(plot.title = element_text(size=etxt/2),
+      axis.text.y = element_text(size = axtxt),
+      axis.text.x = element_text(size = axtxt/2),
+      axis.title.x = element_text(size=tittxt),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=etxt/2),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank(),
+      panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black")
+      )+
+  labs(title = CONtxt)+
+  labs(subtitle = SCHZtxt)
+pkelso
+ggsave('Figures/01_SCOTT_HCPEP_META.pdf', width=20, height=20, units="cm")
+
+RegtbCON<-Regtb[Regtb$COND %in% c("CONT"),]
+RegtbSCHZ<-Regtb[Regtb$COND %in% c("SCHZ"),]
+
+lmCON<-lm(GINT~META, data=RegtbCON)
+sumCON<-summary(lmCON)
+
+tidylm<-broom::glance(lmCON)
+write.xlsx(tidylm,"Results/01_Regression_META.xlsx","GINT_CON", append=TRUE)
+
+
+R2<-format(sumCON$r.squared,digits=2,nsmall=1)
+R2adj<-format(sumCON$adj.r.squared, digits=2,nsmall=1)
+
+CONtxt<-paste("CON: R2=", R2, ", R2adj=", R2adj,sep="")
+
+lmSCHZ<-lm(GINT~META, data=RegtbSCHZ)
+sumSCHZ<-summary(lmSCHZ)
+
+tidylm<-broom::glance(lmSCHZ)
+write.xlsx(tidylm,"Results/01_Regression_META.xlsx","GINT_SCHZ", append=TRUE)
+
+R2<-format(signif(sumSCHZ$r.squared,2),digits=2,nsmall=1)
+R2adj<-format(signif(sumSCHZ$adj.r.squared,2), digits=2,nsmall=1)
+
+SCHZtxt<-paste("SCHZ: R2=", R2, ", R2adj=", R2adj,sep="")
+
+
+pint<-ggplot(data=Regtb,aes(x=META,y=GINT,col=COND))+
+  geom_point(aes(color=COND))+
+  geom_smooth(method = "lm", se = FALSE)+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  theme(plot.title = element_text(size=etxt/2),
+      axis.text.y = element_text(size = axtxt),
+      axis.text.x = element_text(size = axtxt/2),
+      axis.title.x = element_text(size=tittxt),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=etxt/2),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank(),
+      panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black")
+      ) +
+  labs(title = CONtxt)+
+  labs(subtitle = SCHZtxt)
+
+pint
+
+lmCON<-lm(FSEG~META, data=RegtbCON)
+sumCON<-summary(lmCON)
+
+tidylm<-broom::glance(lmCON)
+write.xlsx(tidylm,"Results/01_Regression_META.xlsx","FSEG_CON", append=TRUE)
+
+R2<-format(signif(sumCON$r.squared,2),digits=2,nsmall=1)
+R2adj<-format(signif(sumCON$adj.r.squared,2), digits=2,nsmall=1)
+
+CONtxt<-paste("CON: R2=", R2, ", R2adj=", R2adj,sep="")
+
+lmSCHZ<-lm(FSEG~META, data=RegtbSCHZ)
+sumSCHZ<-summary(lmSCHZ)
+
+tidylm<-broom::glance(lmSCHZ)
+write.xlsx(tidylm,"Results/01_Regression_META.xlsx","FSEG_SCHZ", append=TRUE)
+
+R2<-format(signif(sumSCHZ$r.squared,2),digits=2,nsmall=1)
+R2adj<-format(signif(sumSCHZ$adj.r.squared,2), digits=2,nsmall=1)
+
+SCHZtxt<-paste("SCHZ: R2=", R2, ", R2adj=", R2adj,sep="")
+
+
+
+pseg<-ggplot(data=Regtb,aes(x=META,y=FSEG,col=COND))+
+  geom_point(aes(color=COND))+
+  geom_smooth(method = "lm", se = FALSE)+
+  scale_color_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND)))+
+  theme(plot.title = element_text(size=etxt/2),
+      axis.text.y = element_text(size = axtxt),
+      axis.text.x = element_text(size = axtxt/2),
+      axis.title.x = element_text(size=tittxt),
+      axis.title.y = element_text(size=tittxt),
+      plot.subtitle = element_text(size=etxt/2),
+      plot.caption = element_text(size=stittxt),
+      legend.text = element_text(size=stittxt),
+      legend.title = element_blank(),
+      panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black")
+      ) +
+  labs(title = CONtxt)+
+  labs(subtitle = SCHZtxt)
+pseg
+
+gp<-plot_grid(pint,pseg,pkelso, nrow=1,ncol=3)
+ggsave('Figures/01_INT_SEG_COBRE_META.pdf', width=60, height=20, units="cm")
+
+# 
+# 
+# # now get a plot of GINT and FSEG against META for each condition
+# 
+# RegtbCON<-Regtb[Regtb$COND %in% c("CONT"),]
+# RegtbSCHZ<-Regtb[Regtb$COND %in% c("SCHZ"),]
+# 
+# RegtbCONGINT<-data.frame(RegtbCON$GINT)
+# names(RegtbCONGINT)<-c("VOI")
+# RegtbCONGINT$METRIC<-'GINT'
+# 
+# RegtbCONFSEG<-data.frame(RegtbCON$FSEG)
+# names(RegtbCONFSEG)<-c("VOI")
+# RegtbCONFSEG$METRIC<-'FSEG'
+# 
+# RegtbCONall<-rbind(RegtbCON,RegtbCON)
+# VOIall<-rbind(RegtbCONGINT,RegtbCONFSEG)
+# RegtbCONall<-cbind(RegtbCONall,VOIall)
+# 
+# pint<-ggplot(data=RegtbCONall,aes(x=META,y=VOI,col=METRIC))+
+#             geom_point(aes(color=METRIC))+
+#             geom_smooth(method = "lm", se = FALSE)
+# pint
+# 
+# RegtbSCHZGINT<-data.frame(RegtbSCHZ$GINT)
+# names(RegtbSCHZGINT)<-c("VOI")
+# RegtbSCHZGINT$METRIC<-'GINT'
+# 
+# RegtbSCHZFSEG<-data.frame(RegtbSCHZ$FSEG)
+# names(RegtbSCHZFSEG)<-c("VOI")
+# RegtbSCHZFSEG$METRIC<-'FSEG'
+# 
+# RegtbSCHZall<-rbind(RegtbSCHZ,RegtbSCHZ)
+# VOIall<-rbind(RegtbSCHZGINT,RegtbSCHZFSEG)
+# RegtbSCHZall<-cbind(RegtbSCHZall,VOIall)
+# 
+# pint<-ggplot(data=RegtbSCHZall,aes(x=META,y=VOI,col=METRIC))+
+#             geom_point(aes(color=METRIC))+
+#             geom_smooth(method = "lm", se = FALSE)
+# pint
+
+outliers<-Regtb %>%
+  identify_outliers("GINT")
+# no extreme outliers
+
+normality<-Regtb %>%
+  shapiro_test(GINT)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(GINT~COND)
+# no diff in variance - no problem t-test var.equal = TRUE
+
+effSize<-Regtb %>%
+  cohens_d(GINT~COND,var.equal=TRUE)
+# small to negligble effect size
+
+write.xlsx(normality,"Results/01_Global_GINT_PermAss_META.xlsx","normality")
+write.xlsx(equil,"Results/01_Global_GINT_PermAss_META.xlsx","equivalence", append=TRUE)
+write.xlsx(effSize,"Results/01_Global_GINT_PermAss_META.xlsx","effect size", append=TRUE)
+
+# do meta and var sequentially
+x<-Regtb[Regtb$COND %in% c("CONT"),]
+y<-Regtb[Regtb$COND %in% c("SCHZ"),]
+
+stat.test_list<-perm.t.test(x$GINT,y$GINT, paired=FALSE) 
+
+# extract the results from the perm htest object
+
+s_df<-stat.test_list$parameter
+s_test<-stat.test_list$statistic
+s_perm_p<-stat.test_list$perm.p.value
+s_upci<-stat.test_list$perm.conf.int[[1]]
+s_loci<-stat.test_list$perm.conf.int[[2]]
+s_mean_con<-stat.test_list$estimate[[1]]
+s_mean_nap<-stat.test_list$estimate[[2]]
+
+# code adapted from add_significance 
+cutpoints<-c(0, 0.0001, 0.001, 0.01, 0.05,  1)
+symbols<-c("****", "***", "**", "*",  "ns")
+p.signif <- s_perm_p %>%
+    stats::symnum(cutpoints = cutpoints, symbols = symbols, na = "") %>%
+    as.character()
+
+# store them in a dataframe for the figures
+stat.test<-data.frame(s_df,s_test, s_perm_p, s_upci,s_loci, s_mean_con, s_mean_nap,p.signif)
+# add group1 and group2
+stat.test["group1"]<-"CONT"
+stat.test["group2"]<-"SCHZ"
+#
+
+write.xlsx(stat.test,"Results/01_Global_GINT_perm_results_META.xlsx")
+
+GINT_means<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_GINT=mean(GINT),
+            sd_GINT=sd(GINT)
+         )
+GINT_means
+
+GINT_se<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_GINT=mean(GINT),
+            sd_GINT=sd(GINT),
+            N_N=n(),
+            se=sd_GINT/sqrt(N_N),
+            ul=mean_GINT+se,
+            ll=mean_GINT-se
+          )
+GINT_se
+
+write.xlsx(as_tibble(GINT_se),"Results/01_Global_GINT_descriptive_stats_META.xlsx",desc)
+
+
+bp<-GINT_se %>% 
+  ggplot(aes(COND,mean_GINT)) +
+  geom_col(aes(fill=COND)) +
+  geom_errorbar(aes(ymin= ll,ymax=ul))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND))) +
+  xlab(" ") +
+  ylab("GINT")+
+  theme(plot.title = element_text(size=etxt),
+    axis.text = element_text(size = axtxt),
+    axis.title.x = element_text(size=tittxt),
+    axis.title.y = element_text(size=tittxt),
+    plot.subtitle = element_text(size=stittxt),
+    plot.caption = element_text(size=stittxt),
+    legend.position = "none",
+    panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black")) +
+    scale_x_discrete(labels=c("CONT" = "C","SCHZ" = "S"))
+
+barplt<-bp +stat_pvalue_manual(
+  stat.test, y.position = c(0.25), label = "p.signif", tip.length = 0,hide.ns=FALSE,size=8, color="red",vjust=0.5)
+pdf("Figures/01_Global_perm_GINT.pdf",6,4)
+barplt
+dev.off()
+
+
+# Now do FSEG
+
+# Test assumptions for t-tetstand run permutation t-tests if not valid
+outliers<-Regtb %>%
+  identify_outliers("FSEG")
+# no extreme outliers
+
+normality<-Regtb %>%
+  shapiro_test(FSEG)
+# p value > 0.5 for all modes so continue with 2 sample t-test
+
+equil<-Regtb %>%
+  levene_test(FSEG~COND)
+# no diff in variance - no problem t-test var.equal = TRUE
+
+effSize<-Regtb %>%
+  cohens_d(FSEG~COND,var.equal=TRUE)
+# small to negligble effect size
+
+write.xlsx(normality,"Results/01_Global_FSEG_PermAss_META.xlsx","normality")
+write.xlsx(equil,"Results/01_Global_FSEG_PermAss_META.xlsx","equivalence", append=TRUE)
+write.xlsx(effSize,"Results/01_Global_FSEG_PermAss_META.xlsx","effect size", append=TRUE)
+
+x<-Regtb[Regtb$COND %in% c("CONT"),]
+y<-Regtb[Regtb$COND %in% c("SCHZ"),]
+
+stat.test_list<-perm.t.test(x$FSEG,y$FSEG, paired=FALSE) 
+
+# extract the results from the perm htest object
+
+s_df<-stat.test_list$parameter
+s_test<-stat.test_list$statistic
+s_perm_p<-stat.test_list$perm.p.value
+s_upci<-stat.test_list$perm.conf.int[[1]]
+s_loci<-stat.test_list$perm.conf.int[[2]]
+s_mean_con<-stat.test_list$estimate[[1]]
+s_mean_nap<-stat.test_list$estimate[[2]]
+
+# code adapted from add_significance 
+cutpoints<-c(0, 0.0001, 0.001, 0.01, 0.05,  1)
+symbols<-c("****", "***", "**", "*",  "ns")
+p.signif <- s_perm_p %>%
+    stats::symnum(cutpoints = cutpoints, symbols = symbols, na = "") %>%
+    as.character()
+
+# store them in a dataframe for the figures
+stat.test<-data.frame(s_df,s_test, s_perm_p, s_upci,s_loci, s_mean_con, s_mean_nap,p.signif)
+# add group1 and group2
+stat.test["group1"]<-"CONT"
+stat.test["group2"]<-"SCHZ"
+#
+
+write.xlsx(stat.test,"Results/01_Global_FSEG_perm_results_META.xlsx")
+
+FSEG_means<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_FSEG=mean(FSEG),
+            sd_FSEG=sd(FSEG)
+         )
+FSEG_means
+
+FSEG_se<-Regtb %>%
+  group_by(COND) %>%
+  summarise(mean_FSEG=mean(FSEG),
+            sd_FSEG=sd(FSEG),
+            N_N=n(),
+            se=sd_FSEG/sqrt(N_N),
+            ul=mean_FSEG+se,
+            ll=mean_FSEG-se
+          )
+FSEG_se
+
+write.xlsx(as_tibble(FSEG_se),"Results/01_Global_FSEG_descriptive_stats_META.xlsx",desc)
+
+
+bp<-FSEG_se %>% 
+  ggplot(aes(COND,mean_FSEG)) +
+  geom_col(aes(fill=COND)) +
+  geom_errorbar(aes(ymin= ll,ymax=ul))+
+  scale_fill_manual("COND", values=setNames(colors,levels(Regtb$COND))) +
+  xlab(" ") +
+  ylab("FSEG")+
+  theme(plot.title = element_text(size=etxt),
+    axis.text = element_text(size = axtxt),
+    axis.title.x = element_text(size=tittxt),
+    axis.title.y = element_text(size=tittxt),
+    plot.subtitle = element_text(size=stittxt),
+    plot.caption = element_text(size=stittxt),
+    legend.position = "none",
+    panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black")) +
+    scale_x_discrete(labels=c("CONT" = "C","SCHZ" = "S"))
+
+
+barplt<-bp +stat_pvalue_manual(
+  stat.test, y.position = c(0.0065), label = "p.signif", tip.length = 0,hide.ns=FALSE,size=8, color="red")
+pdf("Figures/01_Global_perm_FSEG_META.pdf",6,4)
+barplt
+dev.off()
+
+```
+
