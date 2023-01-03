@@ -1,0 +1,313 @@
+---
+title: "Categorization of HCPEP COND based on VAR dynamic metrics - upsampling"
+author: 
+- name: "Fran Hancock"
+  affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,get_libs,echo=FALSE,message=FALSE}
+# R code
+
+library(lmerTest)
+library(ggpubr)
+library(caret)
+library(effects)
+library(see)
+library(car)
+library(sjPlot)
+library(cowplot)
+library(lmPerm)
+library(knitr)
+library(e1071)
+library(xlsx)
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE')
+
+meth<-"xval"
+comp<-"CON NAP"
+run<-'RUN2'
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+sym<-c(16,16)
+trellis.par.set(superpose.symbol = list(col = colors))
+trellis.par.set(superpose.line = list(col = colors))
+trellis.par.set(superpose.symbol = list(pch = sym))
+```
+
+### naive Bayes classification for VAR in HCPEP
+
+Assess the dynamic mode metric VAR for classification
+
+Train and cross validation in one run
+external validation in Cobre
+
+Rationale for not testing in a different run
+Using same subjects in train and test will incur data leakage (Varoquaux and Colliot,2022)
+
+```{r,lme_model_panns,echo=FALSE, message=FALSE}
+DYN_CON<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_CON/Regtable_modes_RAW.csv')
+DYN_NAP<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_NAP/Regtable_modes_RAW.csv')
+
+if (comp=="CON NAP"){ADYN<-rbind(DYN_CON,DYN_NAP)}
+
+# ADYN$src_subject_id<-as.character(unlist(ADYN$src_subject_id))
+
+
+##################
+```
+
+## Classification with naive Bayes
+
+```{r,bayes_class,echo=FALSE, message=FALSE}
+library(e1071)
+DYN<-ADYN
+
+Mode1VARRuns<-DYN[DYN$MODE %in% c('MODE1'),]
+Mode1VAR<-Mode1VARRuns[Mode1VARRuns$RUN %in% c(run),]
+Mode2VARRuns<-DYN[DYN$MODE %in% c('MODE2'),]
+Mode2VAR<-Mode2VARRuns[Mode1VARRuns$RUN %in% c(run),]
+Mode3VARRuns<-DYN[DYN$MODE %in% c('MODE3'),]
+Mode3VAR<-Mode3VARRuns[Mode1VARRuns$RUN %in% c(run),]
+Mode4VARRuns<-DYN[DYN$MODE %in% c('MODE4'),]
+Mode4VAR<-Mode4VARRuns[Mode1VARRuns$RUN %in% c(run),]
+Mode5VARRuns<-DYN[DYN$MODE %in% c('MODE5'),]
+Mode5VAR<-Mode5VARRuns[Mode1VARRuns$RUN %in% c(run),]
+
+src_subject_id<-as.integer(Mode2VAR[,'SUB'])
+Mode25VAR<-data.frame(src_subject_id) 
+Mode25VAR["VAR1"]<-Mode1VAR$VAR
+Mode25VAR["VAR2"]<-Mode2VAR$VAR
+Mode25VAR["VAR3"]<-Mode3VAR$VAR
+Mode25VAR["VAR4"]<-Mode4VAR$VAR
+Mode25VAR["VAR5"]<-Mode5VAR$VAR
+Mode25VAR["COND"]<-Mode1VAR$COND
+
+RegtbTrain<-Mode25VAR
+RegtbTrain$COND <- factor(RegtbTrain$COND, levels = c("CON","NAP"))
+
+attach(RegtbTrain)
+
+# # Train with nb and do k-fold cross validation
+#
+if (meth=="boot") {
+  train.control <- trainControl(method = "boot",
+                              number = 200, savePredictions = TRUE)
+  print("Bootstrap")
+} else {
+train.control <- trainControl(method = "repeatedcv",
+                              number = 10, repeats = 20,
+                              savePredictions = TRUE,
+                              summaryFunction = twoClassSummary,
+                              classProbs = TRUE,
+                              sampling = "up")
+
+  print("K-fold cross-validation")
+}
+
+
+set.seed(123)
+
+cv_fit<-train(COND~  VAR4 , data=RegtbTrain, method = "nb", trControl = train.control)
+cv_fit
+
+cfm<-confusionMatrix(cv_fit)
+
+TP<-cfm$table[1,1]
+TN<-cfm$table[2,2]
+FP<-cfm$table[1,2]
+FN<-cfm$table[2,1]
+
+N=(TP+TN+FP+FN)
+mAcc<-(TP+TN)/(TP+TN+FP+FN)
+Correct<-as.integer(mAcc*100)
+statsig<-dbinom(Correct,N,0.5)
+
+# sanity check
+Sens<-TP/(TP+FN)
+
+# get the resampled results
+
+mROC<-mean(cv_fit$resample$ROC)
+mSens<-mean(cv_fit$resample$Sens)
+mSpec<-mean(cv_fit$resample$Spec)
+mROC
+mAcc
+mSens
+Sens
+mSpec
+
+mROCtxt<-paste("AUC = ",signif(mROC,3))
+mSenstxt<-paste("Sens = ",signif(mSens,3))
+mSpectxt<-paste("Spec = ",signif(mSpec,3))
+MAcctxt<-paste("BA = ", signif(mAcc,3))
+statsigTxt<-paste( "( p =" , signif(statsig,3),")")
+
+result_txt<-paste(signif(mROC,3), "/", signif(mAcc,3), "/", signif(mSens,3), "/", signif(mSpec,3))
+result_txt
+
+# This code is ONLY to get a graphical figure for th ROC curve. I do not report the performance
+# of testing in the training data!!!
+
+library(ROCR)
+pred_prob<-predict(cv_fit$finalModel, RegtbTrain, type ="prob")
+pred<-ROCR::prediction(predictions=pred_prob$posterior[, 2], labels=RegtbTrain$COND)
+roc<-performance(pred, measure="tpr", x.measure="fpr")
+
+roc_auc<-performance(pred, measure="auc")
+auc_val<-as.numeric(roc_auc@y.values)
+auc_txt<-paste("AUC = ",signif(auc_val,3))
+auc_txt
+
+pdf(paste("Figures/07_", run, "Cross_validation_HCPEP_CON_NAP_VAR_AUC_PLOT_UP.pdf"))
+par(cex.axis=1.5)
+plot(roc, main=paste(run, "HCPEP VAR X-VAL ROC curve for NAP CON"),
+     col="blue",
+     lwd=3,
+     cex.lab = 1.5,
+     cex.main = 1.5)
+text(0.7,0.2,mROCtxt,cex=2)
+text(0.7,0.1,result_txt, cex=1.5)
+text(0.7,0.0,statsigTxt, cex=1)
+segments(0, 0, 1, 1, lty=2)
+#
+dev.off()
+
+
+```
+# now test in COBRE dataset
+
+```{r,lme_model_cobre,echo=FALSE, message=FALSE}
+
+  DYN_CONT<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD/RUN1/Regtable_modes_RAW.csv')
+  DYN_SCHZ<-read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/COBRA_COMPLEXITY_PHASE_FD/RUN2/Regtable_modes_RAW.csv')
+
+# create the datasets seperately for CON and SCHZ so that it is possible to create a random sample of 53 subjects to match the classifier from HCPEP
+  
+  Mode1VAR<-DYN_CONT[DYN_CONT$MODE %in% c('MODE1'),]
+  Mode2VAR<-DYN_CONT[DYN_CONT$MODE %in% c('MODE2'),]
+  Mode3VAR<-DYN_CONT[DYN_CONT$MODE %in% c('MODE3'),]
+  Mode4VAR<-DYN_CONT[DYN_CONT$MODE %in% c('MODE4'),]
+  Mode5VAR<-DYN_CONT[DYN_CONT$MODE %in% c('MODE5'),]
+
+  SUB<-Mode2VAR$SUB
+
+  Mode25VAR<-data.frame(SUB)
+  Mode25VAR["VAR1"]<-Mode1VAR$VAR
+  Mode25VAR["VAR2"]<-Mode2VAR$VAR
+  Mode25VAR["VAR3"]<-Mode3VAR$VAR
+  Mode25VAR["VAR4"]<-Mode4VAR$VAR
+  Mode25VAR["VAR5"]<-Mode5VAR$VAR
+  Mode25VAR["COND"]<-Mode1VAR$COND
+  
+  # limit the dataset to 53 random samples to match the classifier from HCPEP
+  set.seed(1234)
+  DYN_CONT_RDM<-Mode25VAR[sample(1:nrow(Mode25VAR),53),]
+
+  # now for SCHZ
+  
+  Mode1VAR<-DYN_SCHZ[DYN_SCHZ$MODE %in% c('MODE1'),]
+  Mode2VAR<-DYN_SCHZ[DYN_SCHZ$MODE %in% c('MODE2'),]
+  Mode3VAR<-DYN_SCHZ[DYN_SCHZ$MODE %in% c('MODE3'),]
+  Mode4VAR<-DYN_SCHZ[DYN_SCHZ$MODE %in% c('MODE4'),]
+  Mode5VAR<-DYN_SCHZ[DYN_SCHZ$MODE %in% c('MODE5'),]
+
+  SUB<-Mode2VAR$SUB
+  # swap mode  (3,4) to match the HCP-EP classifier
+  Mode25VAR<-data.frame(SUB)
+  Mode25VAR["VAR1"]<-Mode1VAR$VAR
+  Mode25VAR["VAR2"]<-Mode2VAR$VAR
+  Mode25VAR["VAR3"]<-Mode3VAR$VAR
+  Mode25VAR["VAR4"]<-Mode4VAR$VAR
+  Mode25VAR["VAR5"]<-Mode5VAR$VAR
+  Mode25VAR["COND"]<-Mode1VAR$COND
+  
+  # limit the dataset to 53 random samples to match the classifier from HCPEP
+  set.seed(1234)
+  DYN_SCHZ_RDM<-Mode25VAR[sample(1:nrow(Mode25VAR),53),]
+
+  RegtbTest2<-rbind(DYN_CONT_RDM,DYN_SCHZ_RDM)
+  RegtbTest2$COND <- factor(RegtbTest2$COND, levels = c("CON","NAP"))
+
+  pt<-prop.table(table(predict(cv_fit$finalModel,RegtbTest2)$class ,RegtbTest2$COND))
+  cfm<-confusionMatrix(pt, positive = "NAP") 
+  cfm
+  
+  mSens<-cfm$byClass[[1]]
+  mSpec<-cfm$byClass[[2]]
+  mAcc<-cfm$byClass[[11]]
+  mSenstxt<-paste("Sens = ",signif(mSens,3))
+  mSpectxt<-paste("Spec = ",signif(mSpec,3))
+  MAcctxt<-paste("BA = ", signif(mAcc,3))
+
+  TP<-cfm$table[1,1]
+  TN<-cfm$table[2,2]
+  FP<-cfm$table[1,2]
+  FN<-cfm$table[2,1]
+
+  N=(TP+TN+FP+FN)*100
+  Correct<-as.integer(mAcc*100)
+  statsig<-dbinom(Correct,N,0.5)
+  
+  pred_prob<-predict(cv_fit$finalModel, RegtbTest2, type ="prob")
+  pred<-ROCR::prediction(predictions=pred_prob$posterior[, 2], labels=RegtbTest2$COND) 
+  roc<-performance(pred, measure="tpr", x.measure="fpr")
+  
+  roc_auc<-performance(pred, measure="auc")
+  mROC<-as.numeric(roc_auc@y.values)
+  auc<-mROC
+  mROCtxt<-paste("AUC = ",signif(mROC,3))
+  statsigTxt<-paste( "( p =" , signif(statsig,3),")")
+
+
+  result_txt<-paste(signif(mROC,3), "/", signif(mAcc,3), "/", signif(mSens,3), "/", signif(mSpec,3))
+  result_txt
+  
+ 
+  pdf(paste("Figures/07_external_validation_HCPEP_", run,"_VAR_AUC_PLOT_COBRE_UP.pdf"))
+  par(cex.axis=1.5)
+  plot(roc, main=paste("VAR UP HCPEP->COBRE ROC curve"), 
+       col="blue", 
+       lwd=3,
+       cex.lab = 1.5,
+       cex.main = 1.5)
+  text(0.7,0.2,mROCtxt,cex=2)
+  text(0.7,0.1,result_txt,cex=1.5)
+  text(0.7, 0.0, statsigTxt, cex=1)
+  segments(0, 0, 1, 1, lty=2)
+  
+  dev.off()
+  
+  # AUC 0.6-0.7 - poor
+  ###############################
+  
+  mdl<-cv_fit$call
+  mdl
+
+  cv_tab<-table(predict(cv_fit$finalModel,RegtbTest2)$class,RegtbTest2$COND)
+  # print the confusion matrix
+  cv_tab
+ 
+  toexcel<-data.frame(cbind(t(cfm$overall),t(cfm$byClass)))
+  if (meth=="boot"){
+    write.xlsx(cv_tab,"Confusion_FP_DYN_boot.xlsx","ConfusionMatrix" )
+    write.xlsx(toexcel,"Confusion_FP_DYN_boot.xlsx","results", append=TRUE)
+    write.xlsx(auc_txt,"Confusion_FP_DYN_xval.xlsx","auc", append=TRUE)
+  } else {
+    write.xlsx(cv_tab,paste("Results/07_",run,"_",  "_Confusion_HCPEP_VAR_COBRE_UP.xlsx"),"ConfusionMatrix" )
+    write.xlsx(toexcel,paste("Results/07_",run,"_", "_Confusion_HCPEP_VAR_COBRE_UP.xlsx"),"results", append=TRUE)
+    write.xlsx(mROCtxt,paste("Results/07_",run,"_", "_Confusion_HCPEP_VAR_COBRE_UP.xlsx"),"auc", append=TRUE)
+  }
+
+  
+  
+```

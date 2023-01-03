@@ -1,0 +1,87 @@
+---
+title: "Statistics for age and sex - HCPEP and Cobre"
+author: "Fran Hancock"
+affiliation: Department of Neuroimaging, Institute of Psychiatry, Psychology and Neuroscience, King's College London, London, UK 
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 14pt
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,load_libraries,echo=FALSE, message=FALSE,include=FALSE}
+
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(cowplot)
+library(xlsx)
+library(GGally)
+library(knitr)
+library(EnvStats)
+library(rstatix)
+
+
+opts_knit$set(root.dir ='/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE')
+
+con_col<-"cornflowerblue"
+pap_col<-"gold2"
+nap_col<-"grey69"
+colors<-c(con_col,nap_col)
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### Setup for SC Contribution over 4 runs for 3 conditions
+
+```{r,boxplots,echo=FALSE, message=FALSE}
+
+Regtb <- read.csv('/Users/HDF/Dropbox/Fran/Academics/PhD/matlab/projects/HCPEP_COMPARE/age_sex_both.csv',stringsAsFactors=TRUE)
+
+# define the mode colors 
+
+mode1_col<-"grey69"
+mode2_col<-"firebrick"
+mode3_col<-"violet"
+mode4_col<-"darkorange1"
+mode5_col<-"purple"
+etxt<-40
+axtxt<-28
+tittxt<-36
+stittxt<-20
+```
+
+### Rainclouds for HCPEP AGE
+
+```{r,age_hcpep,echo=FALSE, message=FALSE}
+                     
+df1<-data.frame(trait=c(rep("CON",53), rep("NAP",82)), sex=c(Regtb$SEX_CON[1:53], Regtb$SEX_NAP[1:82]))
+ct_hcp_sex<-chisq_test(df1$trait, df1$sex)
+ct_hcp_sex
+# chisq_descriptives(ct_hcp_sex)
+# expected_freq(ct_hcp_sex)
+# observed_freq(ct_hcp_sex)
+
+df2<-data.frame(trait=c(rep("CON",72), rep("NAP",59)), sex=c(Regtb$SEX_CONT[1:72], Regtb$SEX_SCHZ[1:59]))
+ct_cobre_sex<-chisq_test(df2$trait, df2$sex)
+ct_cobre_sex
+
+df3<-data.frame(trait=c(rep("CON",53), rep("NAP",82)), age=c(Regtb$AGE_CON[1:53], Regtb$AGE_NAP[1:82]))
+ct_hcp_age<-chisq_test(df3$trait, df3$age)
+ct_hcp_age
+wc_hcp_age<-df3 %>% wilcox_test(age ~ trait, alternative = "two.sided", detailed=TRUE)
+wc_hcp_age
+
+#t.test(age ~ trait, data=df3)
+
+df4<-data.frame(trait=c(rep("CON",72), rep("NAP",59)), age=c(Regtb$AGE_CONT[1:72], Regtb$AGE_SCHZ[1:59]))
+ct_cobre_age<-chisq_test(df4$trait, df4$age)
+ct_cobre_age
+wc_cobre_age<-df4 %>% wilcox_test(age ~ trait)
+wc_cobre_age
+
+```
